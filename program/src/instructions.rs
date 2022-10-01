@@ -20,9 +20,11 @@ pub enum LoanInstruction {
     /// 0 - [signer] borrower who is initiating request for a loan
     /// 1 - [] borrower token account which will receive the loan
     /// 2 - [writer] token account which holds the nft
-    /// 3 - [writer] vault which will store the nft
-    /// 4 - [] token program
-    /// 5 - [] rent sysvar 
+    /// 3 - [writer] mint of the collateral nft
+    /// 4 - [writer] vault which will store the nft
+    /// 5 - [writer] loan request state for the nft
+    /// 6 - [] token program
+    /// 7 - [] rent sysvar 
     InitializeRequest{
         loan_amount : u64,
         deadline : u64,

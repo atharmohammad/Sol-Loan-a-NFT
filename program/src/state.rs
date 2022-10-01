@@ -12,6 +12,9 @@ pub struct Request {
     pub borrower : Pubkey, // 32
     pub borrower_token_account : Pubkey, // 32
     pub collateral_nft : Pubkey, // 32
+    pub vault : Pubkey, // 32
+    pub loan_amount : u64, // 8
+    pub deadline : u64 // 8
 }
 
 impl Sealed for Request {}
