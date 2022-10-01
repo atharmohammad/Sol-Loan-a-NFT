@@ -22,10 +22,13 @@ pub fn process_instruction(
     input: &[u8],
 ) -> ProgramResult {
     msg!("program starts!");
-    // match instruction.variant {
-    //     0 => {
-    //         Ok(())
-    //     }
-    // }
+    let instruction = Payload::try_from_slice(input)?;
+    match instruction.variant {
+        0 => {
+            msg!("Initialize request instruction starts !");
+            let accounts_iter = &mut accounts.iter();
+        },
+        _ => return Err(ProgramError::InvalidArgument)
+    }
     Ok(())
 }

@@ -8,11 +8,10 @@ use solana_program::{
 
 #[derive(Clone, Copy, Debug, BorshSerialize, BorshDeserialize, BorshSchema, PartialEq)]
 pub struct Request {
-    // pub user_sender: Pubkey,                    // 32
-    // pub is_initialized: u8,                     // 1
-    // pub escrow_token_account: Pubkey,           //32
-    // pub senders_token_receiver_account: Pubkey, //32
-    // pub expected_amount: u64,                   // 8
+    pub is_initialized: u8, // 1
+    pub borrower : Pubkey, // 32
+    pub borrower_token_account : Pubkey, // 32
+    pub collateral_nft : Pubkey, // 32
 }
 
 impl Sealed for Request {}

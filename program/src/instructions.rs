@@ -7,14 +7,23 @@ use solana_program::{
     pubkey::Pubkey,
     sysvar::{self, rent},
 };
-// #[derive(Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq)]
-// pub struct Payload {
-//     pub variant: u8,
-//     pub arg1: u64,
-// }
+#[derive(Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq)]
+pub struct Payload {
+    pub variant: u8,
+    pub arg1: u64,
+    pub arg2: u64
+}
 #[derive(Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq)]
 pub enum LoanInstruction {
-    Initialize{
+    /// Initialize request for a loan and provides with amount of loan required and deadline which can be followed
+    /// accounts required :
+    /// 0 - [signer] borrower who is initiating request for a loan
+    /// 1 - [] borrower token account which will receive the loan
+    /// 2 - [writer] token account which holds the nft
+    /// 3 - [writer] vault which will store the nft
+    /// 4 - [] token program
+    /// 5 - [] rent sysvar 
+    InitializeRequest{
         loan_amount : u64,
         deadline : u64,
     }
