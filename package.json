@@ -10,7 +10,8 @@
     "build:program": "cargo build-bpf --manifest-path=./program/Cargo.toml --bpf-out-dir=dist/program",
     "clean:program": "cargo clean --manifest-path=./program/Cargo.toml && rm -rf ./dist",
     "test:program": "cargo test-bpf --manifest-path=./program/Cargo.toml",
-    "deploy:program" : "solana program deploy /media/athar/Develop/solana_fellow/nftloans/dist/program/nftloans.so"
+    "deploy:program" : "solana program deploy /media/athar/Develop/solana_fellow/nftloans/dist/program/nftloans.so",
+    "fmt" : "cd program/ && cargo fmt --all"
   },
   "dependencies": {
     "@solana/buffer-layout": "^4.0.0",

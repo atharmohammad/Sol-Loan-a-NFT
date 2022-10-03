@@ -6,6 +6,7 @@ use solana_program::bpf_loader_upgradeable::close;
 use solana_program::bpf_loader_upgradeable::close_any;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
+    clock::Clock,
     entrypoint::ProgramResult,
     msg,
     program::{invoke, invoke_signed},
@@ -31,6 +32,7 @@ pub fn process_instruction(
             let accounts_iter = &mut accounts.iter();
             let borrower = next_account_info(accounts_iter)?;
             let borrower_token_account = next_account_info(accounts_iter)?;
+            let principal_token = next_account_info(accounts_iter)?;
             let nft_holding_token_account = next_account_info(accounts_iter)?;
             let collateral_nft = next_account_info(accounts_iter)?;
             let vault = next_account_info(accounts_iter)?;
@@ -49,12 +51,14 @@ pub fn process_instruction(
             request_info.vault = *vault.key;
             request_info.loan_amount = instruction.arg1;
             request_info.deadline = instruction.arg2;
+            request_info.principal_token = *principal_token.key;
             request_info.lender = id(); // placeholder for the lender
-            msg!("{},{}",instruction.arg1,instruction.arg2);
+            request_info.loan_submission_time = 0; // placeholder , will be set when someone grants the loan
+            msg!("{},{}", instruction.arg1, instruction.arg2);
             msg!("Serialize the loan request state account after assigning the values");
             request_info.serialize(&mut &mut loan_request_state.data.borrow_mut()[..])?;
-            let state_seeds = vec![b"vault".as_ref(),collateral_nft.key.as_ref()];
-            let (vault_pda,_bump) = Pubkey::find_program_address(state_seeds.as_slice(), &id());
+            let state_seeds = vec![b"vault".as_ref(), collateral_nft.key.as_ref()];
+            let (vault_pda, _bump) = Pubkey::find_program_address(state_seeds.as_slice(), &id());
             msg!("transfer authority of token account holding collateral nft to vault pda!"); // create vault pda for every request by considering nft mint as the seed for the pda
             let transfer_nft_authority = set_authority(
                 &token_program.key,
@@ -73,7 +77,56 @@ pub fn process_instruction(
                 ],
             )?;
             Ok(())
-        },
+        }
+        1 => {
+            msg!("Compelete the request by providing loan instruction starts !");
+            let accounts_iter = &mut accounts.iter();
+            let lender = next_account_info(accounts_iter)?;
+            let borrower_token_account = next_account_info(accounts_iter)?;
+            let lenders_token_account = next_account_info(accounts_iter)?;
+            let loan_request_state = next_account_info(accounts_iter)?;
+            let token_program = next_account_info(accounts_iter)?;
+            let clock = Clock::from_account_info(next_account_info(accounts_iter)?)?;
+            if *lenders_token_account.owner != spl_token::id() {
+                return Err(ProgramError::IllegalOwner);
+            }
+            msg!("Deserialize the loan request state account!");
+            let mut request_info = Request::unpack_unchecked(*loan_request_state.data.borrow())?;
+            request_info.lender = *lender.key;
+            request_info.is_initialized = 2;
+            request_info.loan_submission_time =
+                clock.unix_timestamp as u64 + request_info.deadline * 24 * 60 * 60; // adding days needed to payback loan
+            msg!(
+                "loan submission time is : {}",
+                request_info.loan_submission_time
+            );
+            msg!("check if the amount the lender is lending is correct !");
+            if instruction.arg1 != request_info.loan_amount {
+                return Err(ProgramError::InsufficientFunds);
+            }
+            msg!("{}", instruction.arg1);
+            msg!("Serialize the loan request state account after assigning the values");
+            request_info.serialize(&mut &mut loan_request_state.data.borrow_mut()[..])?;
+            msg!("transfer the loan amount to the borrower !");
+            let transfer_loan = transfer(
+                token_program.key,
+                lenders_token_account.key,
+                &request_info.borrower_token_account,
+                lender.key,
+                &[&lender.key],
+                request_info.loan_amount,
+            )?;
+            invoke(
+                &transfer_loan,
+                &[
+                    token_program.clone(),
+                    lenders_token_account.clone(),
+                    lender.clone(),
+                    borrower_token_account.clone(),
+                ],
+            )?;
+            Ok(())
+        }
         _ => return Err(ProgramError::InvalidArgument),
     }
 }
