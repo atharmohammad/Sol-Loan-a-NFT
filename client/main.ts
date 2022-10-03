@@ -10,7 +10,7 @@ import {
     SystemProgram,
     Struct
 } from "@solana/web3.js";
-import {TOKEN_PROGRAM_ID,ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccount, AccountLayout, transfer, mintTo, createAssociatedTokenAccountInstruction, createMint, createInitializeAccountInstruction, createInitializeAccount3Instruction, createMintToInstruction} from "@solana/spl-token";
+import {TOKEN_PROGRAM_ID,ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccount, AccountLayout, transfer, mintTo, createAssociatedTokenAccountInstruction, createMint, createInitializeAccountInstruction, createInitializeAccount3Instruction, createMintToInstruction, getOrCreateAssociatedTokenAccount} from "@solana/spl-token";
 import fs from 'mz/fs';
 import os from 'os';
 import path from 'path';
@@ -18,7 +18,7 @@ import yaml from 'yaml';
 import {struct,u32,u8} from "@solana/buffer-layout";
 import {bigInt, publicKey, u64} from "@solana/buffer-layout-utils"
 import { serialize, deserialize, deserializeUnchecked } from "borsh";
-import BN from "bn.js";
+import assert from "assert";
 
 class Payload extends Struct {
     constructor(properties : any) {
@@ -35,7 +35,7 @@ const CONFIG_FILE_PATH = path.resolve(
     'config.yml',
 );
 const PROGRAM_KEYPAIR_PATH = path.join(
-    path.resolve(__dirname,"../dist/program/"),"escrow-keypair.json"
+    path.resolve(__dirname,"../dist/program/"),"nftloans-keypair.json"
 );
 
 const createAccount = async(connection:Connection) : Promise<Keypair> => {
@@ -57,9 +57,11 @@ const createKeypairFromFile = async(path:string): Promise<Keypair> => {
     pub borrower_token_account: Pubkey, // 32
     pub collateral_nft: Pubkey,         // 32
     pub vault: Pubkey,                  // 32
+    pub lender : Pubkey,                // 32
     pub loan_amount: u64,               // 8
     pub deadline: u64,                  // 8
-}*/
+}
+*/
 
 interface request {
     isInitialized : number;
@@ -67,6 +69,7 @@ interface request {
     borrowerTokenAccount : PublicKey;
     collateralNft : PublicKey;
     vault : PublicKey;
+    lender : PublicKey,
     loanAmount : bigint;
     deadline : bigint;
 } 
@@ -77,6 +80,7 @@ const REQUEST_LAYOUT = struct<request>([
     publicKey("borrowerTokenAccount"),
     publicKey("collateralNft"),
     publicKey("vault"),
+    publicKey("lender"),
     u64("loanAmount"),
     u64("deadline"),
 ])
@@ -90,8 +94,8 @@ const main = async()=>{
     const alice = await createAccount(connection);
     const value = new Payload({
         id:0,
-        loan: 260,
-        deadline : 15
+        loan: BigInt(260),
+        deadline : BigInt(15)
 
     });
     const schema = new Map([
@@ -101,13 +105,12 @@ const main = async()=>{
             kind: "struct",
             fields: [
               ["id" , "u8"],
-              ["amount", "u64"],
+              ["loan", "u64"],
               ["deadline", "u64"],
             ],
           },
         ],
     ]);
-
     console.log("Initialize the request for loan !");
     let nft_token_account : Keypair , nft_mint : PublicKey , borrower_token_account : Keypair , loan_token_mint : PublicKey;
     try{
@@ -142,28 +145,28 @@ const main = async()=>{
         const tx1 = new Transaction();
 
         tx1.add(borrower_token_account_inst,initialize_borrower_token_account,nft_token_account_inst,initialize_nft_account,mint_to_inst);
-        await sendAndConfirmTransaction(connection,tx1,[alice,nft_token_account]);
+        await sendAndConfirmTransaction(connection,tx1,[alice,nft_token_account,borrower_token_account]);
     }catch(e){
         console.log(e);
         return;
     }
     const loan_request_state = Keypair.generate();
     const create_request_account_inst = SystemProgram.createAccount({
-        space: AccountLayout.span,
+        space: 1 + 32 + 32 + 32 + 32 + 32 + 8 + 8,
         lamports: await connection.getMinimumBalanceForRentExemption(
-            AccountLayout.span
+            1 + 32 + 32 + 32 + 32 + 32 + 8 + 8
         ),
         fromPubkey: alice.publicKey,
         newAccountPubkey: loan_request_state.publicKey,
-        programId: SystemProgram.programId,
+        programId: programId.publicKey,
     })
-    const [vault,_bump] = await PublicKey.findProgramAddress([Buffer.from("vault"),Buffer.from(nft_mint.toString())],programId.publicKey);
+    const [vault,_bump] = await PublicKey.findProgramAddress([Buffer.from("vault"),nft_mint.toBuffer()],programId.publicKey);
     const data = Buffer.from(serialize(schema,value));
     const transaction_inst = new TransactionInstruction({
         keys:[
-            {pubkey:alice.publicKey,isSigner:true,isWritable:false},
+            {pubkey:alice.publicKey,isSigner:true,isWritable:true},
             {pubkey:borrower_token_account.publicKey,isSigner:false,isWritable:false},
-            {pubkey:nft_token_account.publicKey,isSigner:false,isWritable:false},
+            {pubkey:nft_token_account.publicKey,isSigner:false,isWritable:true},
             {pubkey:nft_mint,isSigner:false,isWritable:false},
             {pubkey:vault,isSigner:false,isWritable:true},
             {pubkey:loan_request_state.publicKey,isSigner:false,isWritable:true},
@@ -176,6 +179,24 @@ const main = async()=>{
     const tx2 = new Transaction();
     tx2.add(create_request_account_inst,transaction_inst);
     await sendAndConfirmTransaction(connection,tx2,[alice,loan_request_state]);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const loan_request_data_buffer = await connection.getAccountInfo(loan_request_state.publicKey);
+    if (loan_request_data_buffer === null || loan_request_data_buffer.data.length === 0) {
+        console.log("Request state account has not been initialized properly");
+        process.exit(1);
+    }
+    const loan_request_state_data = REQUEST_LAYOUT.decode(loan_request_data_buffer.data);
+    console.log("///////// Loan Request ! ///////////");
+    loan_request_state_data.borrower.equals(alice.publicKey);
+    loan_request_state_data.borrowerTokenAccount.equals(borrower_token_account.publicKey);
+    loan_request_state_data.vault.equals(vault);
+    loan_request_state_data.collateralNft.equals(nft_mint)
+    assert.equal(loan_request_state_data.deadline,15);
+    assert.equal(loan_request_state_data.loanAmount,260);
+    assert.equal(loan_request_state_data.isInitialized,1);
+
+
+
 }
 
 main().then(

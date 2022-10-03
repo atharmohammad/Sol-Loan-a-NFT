@@ -2,6 +2,8 @@ use crate::id;
 use crate::state::*;
 use crate::{error::LoanError, instructions::*};
 use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::bpf_loader_upgradeable::close;
+use solana_program::bpf_loader_upgradeable::close_any;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -47,15 +49,19 @@ pub fn process_instruction(
             request_info.vault = *vault.key;
             request_info.loan_amount = instruction.arg1;
             request_info.deadline = instruction.arg2;
+            request_info.lender = id(); // placeholder for the lender
+            msg!("{},{}",instruction.arg1,instruction.arg2);
             msg!("Serialize the loan request state account after assigning the values");
             request_info.serialize(&mut &mut loan_request_state.data.borrow_mut()[..])?;
+            let state_seeds = vec![b"vault".as_ref(),collateral_nft.key.as_ref()];
+            let (vault_pda,_bump) = Pubkey::find_program_address(state_seeds.as_slice(), &id());
             msg!("transfer authority of token account holding collateral nft to vault pda!"); // create vault pda for every request by considering nft mint as the seed for the pda
             let transfer_nft_authority = set_authority(
-                token_program.key,
-                nft_holding_token_account.key,
-                Some(vault.key),
+                &token_program.key,
+                &nft_holding_token_account.key,
+                Some(&vault_pda),
                 spl_token::instruction::AuthorityType::AccountOwner,
-                borrower.key,
+                &borrower.key,
                 &[&borrower.key],
             )?;
             invoke(
@@ -63,7 +69,6 @@ pub fn process_instruction(
                 &[
                     token_program.clone(),
                     nft_holding_token_account.clone(),
-                    vault.clone(),
                     borrower.clone(),
                 ],
             )?;

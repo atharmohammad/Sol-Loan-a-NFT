@@ -26,6 +26,14 @@ pub enum LoanInstruction {
     /// 6 - [] token program
     /// 7 - [] rent sysvar
     InitializeRequest { loan_amount: u64, deadline: u64 },
+    /// Accept a request and provide the loans
+    /// accounts required :
+    /// 0 - [signer] lender who is providing the loan
+    /// 1 - [writer] borrower token account which will receive the loan
+    /// 2 - [writer] token account which will provide loan amount
+    /// 3 - [writer] loan request state for the nft
+    /// 4 - [] token program
+    CompeleteRequest { amount: u64 },
 }
 
 // pub fn initialize(

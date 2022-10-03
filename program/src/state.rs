@@ -13,6 +13,7 @@ pub struct Request {
     pub borrower_token_account: Pubkey, // 32
     pub collateral_nft: Pubkey,         // 32
     pub vault: Pubkey,                  // 32
+    pub lender : Pubkey,                // 32
     pub loan_amount: u64,               // 8
     pub deadline: u64,                  // 8
 }
@@ -20,7 +21,7 @@ pub struct Request {
 impl Sealed for Request {}
 
 impl Pack for Request {
-    const LEN: usize = 1 + 32 + 32 + 32 + 32 + 8 + 8;
+    const LEN: usize = 1 + 32 + 32 + 32 + 32 + 32 + 8 + 8;
 
     fn pack_into_slice(&self, dst: &mut [u8]) {
         let mut slice = dst;
