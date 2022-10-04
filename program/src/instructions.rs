@@ -1,12 +1,4 @@
-use crate::error::{self, LoanError};
-use crate::id;
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::{
-    instruction::{AccountMeta, Instruction},
-    program_error::ProgramError,
-    pubkey::Pubkey,
-    sysvar::{self, rent},
-};
 #[derive(Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq)]
 pub struct Payload {
     pub variant: u8,

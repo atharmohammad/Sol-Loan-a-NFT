@@ -2,13 +2,13 @@ use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use solana_program::{
     msg,
     program_error::ProgramError,
-    program_pack::{IsInitialized, Pack, Sealed},
+    program_pack::{Pack, Sealed},
     pubkey::Pubkey,
 };
 
 #[derive(Clone, Copy, Debug, BorshSerialize, BorshDeserialize, BorshSchema, PartialEq)]
 pub struct Request {
-    pub is_initialized: u8,             // 1
+    pub stage: Stage,                   // 1
     pub borrower: Pubkey,               // 32
     pub borrower_token_account: Pubkey, // 32
     pub principal_token: Pubkey,        // 32
@@ -37,4 +37,13 @@ impl Pack for Request {
             ProgramError::InvalidAccountData
         })
     }
+}
+
+#[derive(Clone, Copy, Debug, BorshSerialize, BorshDeserialize, BorshSchema, PartialEq)]
+pub enum Stage {
+    UNINITIALIZED = 0,
+    INITIALIZED = 1,
+    LOANGRANTED = 2,
+    DEADLINEPASSED = 3,
+    LOANPAIDBACK = 4
 }

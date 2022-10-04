@@ -65,7 +65,7 @@ const createKeypairFromFile = async(path:string): Promise<Keypair> => {
 */
 
 interface request {
-    isInitialized : number;
+    stage : number;
     borrower : PublicKey;
     borrowerTokenAccount : PublicKey;
     principalToken : PublicKey;
@@ -78,7 +78,7 @@ interface request {
 } 
 
 const REQUEST_LAYOUT = struct<request>([
-    u8("isInitialized"),
+    u8("stage"),
     publicKey("borrower"),
     publicKey("borrowerTokenAccount"),
     publicKey("principalToken"),
@@ -200,7 +200,7 @@ const main = async()=>{
     loan_token_mint.equals(loan_request_state_data.principalToken);
     assert.equal(loan_request_state_data.deadline,15);
     assert.equal(loan_request_state_data.loanAmount,260);
-    assert.equal(loan_request_state_data.isInitialized,1);
+    assert.equal(loan_request_state_data.stage,1);
 
     console.log("initiate compelete the request by providing loan instruction !");
     value = new Payload({
@@ -247,12 +247,12 @@ const main = async()=>{
     loan_request_state_data.lender.equals(bob.publicKey);
     const slot = await connection.getSlot();
     const timestamp = await connection.getBlockTime(slot);
-    if(timestamp)assert.equal(loan_request_state_data.loanSubmissionTime-BigInt(timestamp),BigInt(15))
+    if(timestamp)assert.equal(loan_request_state_data.loanSubmissionTime-BigInt(timestamp),BigInt(15*24*60*60))
     else {
         console.log("Timestamp not found for the ledger !");
         process.exit(1);
     }
-    assert.equal(loan_request_state_data.isInitialized,2);
+    assert.equal(loan_request_state_data.stage,2);
     const after_granting_loan_alice_token_acc_balance = await connection.getTokenAccountBalance(borrower_token_account.publicKey);
     assert.equal(after_granting_loan_alice_token_acc_balance.value.uiAmountString,"260");
 }

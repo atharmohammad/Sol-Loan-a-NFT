@@ -7,6 +7,14 @@ pub enum LoanError {
     InvalidData,
     #[error("Invalid Instruction")]
     InvalidInstruction,
+    #[error("Wrong Loan Amount Provided")]
+    WrongLoanAmount,
+    #[error("Loan Request Is Already Compeleted")]
+    LoanRequestAlreadyCompeleted,
+    #[error("Not Enough Balance To Provide Loan")]
+    NotEnoughBalanceToProvideLoan,
+    #[error("Loan Request has already Initiated")]
+    RequestAlreadyInitialized,
 }
 
 impl From<LoanError> for ProgramError {

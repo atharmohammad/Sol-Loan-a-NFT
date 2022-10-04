@@ -2,21 +2,18 @@ use crate::id;
 use crate::state::*;
 use crate::{error::LoanError, instructions::*};
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::bpf_loader_upgradeable::close;
-use solana_program::bpf_loader_upgradeable::close_any;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
     entrypoint::ProgramResult,
     msg,
-    program::{invoke, invoke_signed},
+    program::{invoke},
     program_error::ProgramError,
     program_pack::Pack,
     pubkey::Pubkey,
     rent::Rent,
     sysvar::Sysvar,
 };
-use spl_token::instruction::close_account;
 use spl_token::instruction::{set_authority, transfer};
 
 pub fn process_instruction(
@@ -44,10 +41,13 @@ pub fn process_instruction(
             }
             msg!("Deserialize the loan request state account!");
             let mut request_info = Request::unpack_unchecked(*loan_request_state.data.borrow())?;
+            if request_info.stage != Stage::UNINITIALIZED {
+                return Err(LoanError::RequestAlreadyInitialized.into());
+            }
             request_info.borrower = *borrower.key;
             request_info.borrower_token_account = *borrower_token_account.key;
             request_info.collateral_nft = *collateral_nft.key;
-            request_info.is_initialized = 1;
+            request_info.stage = Stage::INITIALIZED;
             request_info.vault = *vault.key;
             request_info.loan_amount = instruction.arg1;
             request_info.deadline = instruction.arg2;
@@ -90,20 +90,30 @@ pub fn process_instruction(
             if *lenders_token_account.owner != spl_token::id() {
                 return Err(ProgramError::IllegalOwner);
             }
+            let lenders_token_state = spl_token::state::Account::unpack_unchecked(*lenders_token_account.try_borrow_data()?)?;
             msg!("Deserialize the loan request state account!");
             let mut request_info = Request::unpack_unchecked(*loan_request_state.data.borrow())?;
+            msg!("Check if the lender have enough tokens to provide loan !");
+            if lenders_token_state.amount < request_info.loan_amount {
+                return Err(LoanError::NotEnoughBalanceToProvideLoan.into());
+            }
+
+            msg!("check if the amount the lender is lending is correct !");
+            if instruction.arg1 != request_info.loan_amount {
+                return Err(LoanError::WrongLoanAmount.into());
+            }
+            msg!("check if no one has provided loan before !");
+            if request_info.stage != Stage::INITIALIZED{
+                return Err(LoanError::LoanRequestAlreadyCompeleted.into());
+            }
             request_info.lender = *lender.key;
-            request_info.is_initialized = 2;
+            request_info.stage = Stage::LOANGRANTED;
             request_info.loan_submission_time =
                 clock.unix_timestamp as u64 + request_info.deadline * 24 * 60 * 60; // adding days needed to payback loan
             msg!(
                 "loan submission time is : {}",
                 request_info.loan_submission_time
             );
-            msg!("check if the amount the lender is lending is correct !");
-            if instruction.arg1 != request_info.loan_amount {
-                return Err(ProgramError::InsufficientFunds);
-            }
             msg!("{}", instruction.arg1);
             msg!("Serialize the loan request state account after assigning the values");
             request_info.serialize(&mut &mut loan_request_state.data.borrow_mut()[..])?;
