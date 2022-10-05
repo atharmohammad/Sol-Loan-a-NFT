@@ -28,6 +28,17 @@ pub enum LoanInstruction {
     /// 4 - [] token program
     /// 5 - [] clock sysvar
     CompeleteRequest { amount: u64 },
+    /// Pay the amount of token taken as loan back and get back the collateral nft
+    /// accounts required :
+    /// 0 - [signer] borrower who had taken the loan
+    /// 1 - [writer] borrower token account which will payback the principal token amount
+    /// 2 - [writer] lenders receiving token account which will receive the amount
+    /// 3 - [writer] vault which stored the nft
+    /// 4 - [writer] loan request state for the nft
+    /// 5 - [writer] nft holding token account
+    /// 6 - [] token program
+    /// 7 - [] clock sysvar
+    PaybackLoan,
 }
 
 // pub fn initialize(

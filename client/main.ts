@@ -52,15 +52,20 @@ const createKeypairFromFile = async(path:string): Promise<Keypair> => {
     const programKeypair = Keypair.fromSecretKey(secret_key);
     return programKeypair;
 }
-/*pub struct Request {
-    pub is_initialized: u8,             // 1
+
+/*
+pub struct Request {
+    pub stage: Stage,                   // 1
     pub borrower: Pubkey,               // 32
     pub borrower_token_account: Pubkey, // 32
+    pub principal_token: Pubkey,        // 32
     pub collateral_nft: Pubkey,         // 32
+    pub nft_holding_account : Pubkey,   // 32
     pub vault: Pubkey,                  // 32
-    pub lender : Pubkey,                // 32
+    pub lender: Pubkey,                 // 32
     pub loan_amount: u64,               // 8
     pub deadline: u64,                  // 8
+    pub loan_submission_time: u64,      // 8
 }
 */
 
@@ -70,8 +75,10 @@ interface request {
     borrowerTokenAccount : PublicKey;
     principalToken : PublicKey;
     collateralNft : PublicKey;
+    nftHoldingAccount : PublicKey;
     vault : PublicKey;
-    lender : PublicKey,
+    lender : PublicKey;
+    lenderTokenAccount:PublicKey;
     loanAmount : bigint;
     deadline : bigint;
     loanSubmissionTime: bigint;
@@ -83,8 +90,10 @@ const REQUEST_LAYOUT = struct<request>([
     publicKey("borrowerTokenAccount"),
     publicKey("principalToken"),
     publicKey("collateralNft"),
+    publicKey("nftHoldingAccount"),
     publicKey("vault"),
     publicKey("lender"),
+    publicKey("lenderTokenAccount"),
     u64("loanAmount"),
     u64("deadline"),
     u64("loanSubmissionTime"),
@@ -155,16 +164,16 @@ const main = async()=>{
         console.log(e);
         return;
     }
-    const loan_request_state = Keypair.generate();
-    const create_request_account_inst = SystemProgram.createAccount({
-        space: 1 + 32 + 32 + 32 + 32 + 32 + 32 + 8 + 8 + 8,
-        lamports: await connection.getMinimumBalanceForRentExemption(
-            1 + 32 + 32 + 32 + 32 + 32 + 32 + 8 + 8 + 8
-        ),
-        fromPubkey: alice.publicKey,
-        newAccountPubkey: loan_request_state.publicKey,
-        programId: programId.publicKey,
-    })
+    const [loan_request_state,_state_bump] = await PublicKey.findProgramAddress([Buffer.from("state")],programId.publicKey);
+    // const create_request_account_inst = SystemProgram.createAccount({
+    //     space: 1 + 32 + 32 + 32 + 32 + 32 + 32 + 32 + 32 + 8 + 8 + 8,
+    //     lamports: await connection.getMinimumBalanceForRentExemption(
+    //         1 + 32 + 32 + 32 + 32 + 32 + 32 + 32 + 32 + 8 + 8 + 8
+    //     ),
+    //     fromPubkey: alice.publicKey,
+    //     newAccountPubkey: loan_request_state.publicKey,
+    //     programId: programId.publicKey,
+    // })
     const [vault,_bump] = await PublicKey.findProgramAddress([Buffer.from("vault"),nft_mint.toBuffer()],programId.publicKey);
     const data = Buffer.from(serialize(schema,value));
     const transaction_inst = new TransactionInstruction({
@@ -175,18 +184,19 @@ const main = async()=>{
             {pubkey:nft_token_account.publicKey,isSigner:false,isWritable:true},
             {pubkey:nft_mint,isSigner:false,isWritable:false},
             {pubkey:vault,isSigner:false,isWritable:true},
-            {pubkey:loan_request_state.publicKey,isSigner:false,isWritable:true},
+            {pubkey:loan_request_state,isSigner:false,isWritable:true},
             {pubkey:TOKEN_PROGRAM_ID,isSigner:false,isWritable:false},
+            {pubkey:SystemProgram.programId,isSigner:false,isWritable:false},
             {pubkey:SYSVAR_RENT_PUBKEY,isSigner:false,isWritable:false},
         ],
         programId:programId.publicKey,
         data
     })
     const tx2 = new Transaction();
-    tx2.add(create_request_account_inst,transaction_inst);
-    await sendAndConfirmTransaction(connection,tx2,[alice,loan_request_state]);
+    tx2.add(transaction_inst);
+    await sendAndConfirmTransaction(connection,tx2,[alice]);
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    let loan_request_data_buffer = await connection.getAccountInfo(loan_request_state.publicKey);
+    let loan_request_data_buffer = await connection.getAccountInfo(loan_request_state);
     if (loan_request_data_buffer === null || loan_request_data_buffer.data.length === 0) {
         console.log("Request state account has not been initialized properly");
         process.exit(1);
@@ -227,7 +237,7 @@ const main = async()=>{
             {pubkey:bob.publicKey,isSigner:true,isWritable:true},
             {pubkey:borrower_token_account.publicKey,isSigner:false,isWritable:true},
             {pubkey:bob_token_account.publicKey,isSigner:false,isWritable:true},
-            {pubkey:loan_request_state.publicKey,isSigner:false,isWritable:true},
+            {pubkey:loan_request_state,isSigner:false,isWritable:true},
             {pubkey:TOKEN_PROGRAM_ID,isSigner:false,isWritable:false},
             {pubkey:SYSVAR_CLOCK_PUBKEY,isSigner:false,isWritable:false},
         ],
@@ -237,7 +247,7 @@ const main = async()=>{
     const tx3 = new Transaction();
     tx3.add(bob_token_account_inst,intialize_bob_token_account_inst,mint_to_bob_inst,transaction_inst_2);
     await sendAndConfirmTransaction(connection,tx3,[bob,alice,bob_token_account]);
-    loan_request_data_buffer = await connection.getAccountInfo(loan_request_state.publicKey);
+    loan_request_data_buffer = await connection.getAccountInfo(loan_request_state);
     if (loan_request_data_buffer === null || loan_request_data_buffer.data.length === 0) {
         console.log("Invalid State !");
         process.exit(1);

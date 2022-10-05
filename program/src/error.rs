@@ -15,6 +15,14 @@ pub enum LoanError {
     NotEnoughBalanceToProvideLoan,
     #[error("Loan Request has already Initiated")]
     RequestAlreadyInitialized,
+    #[error("Loan has not been granted")]
+    LoanHasNotGranted,
+    #[error("Loan Transaction has been compeleted")]
+    LoanTransactionHasAlreadyCompeleted,
+    #[error("Not Enough Balance for Transaction")]
+    NotEnoughBalance,
+    #[error("Deadline for loan has been passed")]
+    LoanDeadlinePassed,
 }
 
 impl From<LoanError> for ProgramError {

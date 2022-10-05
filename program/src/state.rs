@@ -13,8 +13,10 @@ pub struct Request {
     pub borrower_token_account: Pubkey, // 32
     pub principal_token: Pubkey,        // 32
     pub collateral_nft: Pubkey,         // 32
+    pub nft_holding_account: Pubkey,    // 32
     pub vault: Pubkey,                  // 32
     pub lender: Pubkey,                 // 32
+    pub lender_token_account: Pubkey,   // 32
     pub loan_amount: u64,               // 8
     pub deadline: u64,                  // 8
     pub loan_submission_time: u64,      // 8
@@ -23,7 +25,7 @@ pub struct Request {
 impl Sealed for Request {}
 
 impl Pack for Request {
-    const LEN: usize = 1 + 32 + 32 + 32 + 32 + 32 + 32 + 8 + 8 + 8;
+    const LEN: usize = 1 + 32 + 32 + 32 + 32 + 32 + 32 + 32 + 32 + 8 + 8 + 8;
 
     fn pack_into_slice(&self, dst: &mut [u8]) {
         let mut slice = dst;
@@ -39,11 +41,11 @@ impl Pack for Request {
     }
 }
 
-#[derive(Clone, Copy, Debug, BorshSerialize, BorshDeserialize, BorshSchema, PartialEq)]
+#[derive(Clone, Copy, Debug, BorshSerialize, BorshDeserialize, BorshSchema, PartialEq, Eq)]
 pub enum Stage {
     UNINITIALIZED = 0,
     INITIALIZED = 1,
     LOANGRANTED = 2,
     DEADLINEPASSED = 3,
-    LOANPAIDBACK = 4
+    LOANPAIDBACK = 4,
 }
