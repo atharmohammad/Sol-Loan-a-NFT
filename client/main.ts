@@ -164,8 +164,8 @@ const main = async()=>{
         console.log(e);
         return;
     }
-    const [loan_request_state,_state_bump] = await PublicKey.findProgramAddress([Buffer.from("state")],programId.publicKey);
-    // const create_request_account_inst = SystemProgram.createAccount({
+    const [loan_request_state,_state_bump] = await PublicKey.findProgramAddress([Buffer.from("state"),nft_mint.toBuffer()],programId.publicKey);
+    // const create_request_account_inst = SystemProgram.createAccount({ // creating this state account in the program
     //     space: 1 + 32 + 32 + 32 + 32 + 32 + 32 + 32 + 32 + 8 + 8 + 8,
     //     lamports: await connection.getMinimumBalanceForRentExemption(
     //         1 + 32 + 32 + 32 + 32 + 32 + 32 + 32 + 32 + 8 + 8 + 8
@@ -253,7 +253,7 @@ const main = async()=>{
         process.exit(1);
     }
     loan_request_state_data = REQUEST_LAYOUT.decode(loan_request_data_buffer.data);
-    console.log("///////// Loan Request ! ///////////");
+    console.log("///////// Pay Loan Back ! ///////////");
     loan_request_state_data.lender.equals(bob.publicKey);
     const slot = await connection.getSlot();
     const timestamp = await connection.getBlockTime(slot);
@@ -265,6 +265,38 @@ const main = async()=>{
     assert.equal(loan_request_state_data.stage,2);
     const after_granting_loan_alice_token_acc_balance = await connection.getTokenAccountBalance(borrower_token_account.publicKey);
     assert.equal(after_granting_loan_alice_token_acc_balance.value.uiAmountString,"260");
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    value = new Payload({
+        id:2,
+        loan: BigInt(260),// placeholder , not needed in instruction
+        deadline : BigInt(15) // placeholder , not needed in instruction
+    });
+    const transaction_inst_3  = new TransactionInstruction({
+        keys:[
+            {pubkey:alice.publicKey,isSigner:true,isWritable:true},
+            {pubkey:borrower_token_account.publicKey,isSigner:false,isWritable:true},
+            {pubkey:bob_token_account.publicKey,isSigner:false,isWritable:true},
+            {pubkey:vault,isSigner:false,isWritable:true},
+            {pubkey:loan_request_state,isSigner:false,isWritable:true},
+            {pubkey:nft_token_account.publicKey,isSigner:false,isWritable:true},
+            {pubkey:TOKEN_PROGRAM_ID,isSigner:false,isWritable:false},
+            {pubkey:SYSVAR_CLOCK_PUBKEY,isSigner:false,isWritable:false},
+        ],
+        programId:programId.publicKey,
+        data : Buffer.from(serialize(schema,value))
+    });
+    const tx4 = new Transaction();
+    tx4.add(transaction_inst_3);
+    await sendAndConfirmTransaction(connection,tx4,[alice]);
+    const after_paying_loan_back_to_bob = await connection.getTokenAccountBalance(bob_token_account.publicKey); //400
+    assert.equal(after_paying_loan_back_to_bob.value.uiAmountString,"400");
+    const after_paying_loan_alice_token_acc_balance = await connection.getTokenAccountBalance(borrower_token_account.publicKey);
+    assert.equal(after_paying_loan_alice_token_acc_balance.value.uiAmountString,"0");; //0
+    loan_request_data_buffer = await connection.getAccountInfo(loan_request_state);
+    assert.equal(loan_request_data_buffer,null);
+    const nft_acc_after_loan_payback = await connection.getAccountInfo(nft_token_account.publicKey);
+    const nft_account_owner = nft_acc_after_loan_payback?.owner;
+    nft_account_owner?.equals(alice.publicKey);
 }
 
 main().then(

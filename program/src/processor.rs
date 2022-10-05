@@ -4,7 +4,6 @@ use crate::{error::LoanError, instructions::*};
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::program::invoke_signed;
 use solana_program::system_instruction::create_account;
-use solana_program::system_program;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
@@ -50,8 +49,11 @@ pub fn process_instruction(
             let token_program = next_account_info(accounts_iter)?;
             let system_program_acc = next_account_info(accounts_iter)?;
             let rent = &Rent::from_account_info(next_account_info(accounts_iter)?)?;
-            let state_seeds = vec![b"state".as_ref()];
-            let (_vault_pda, _bump) = Pubkey::find_program_address(state_seeds.as_slice(), &id());
+            msg!("Create state account !");
+            let str = collateral_nft.key.clone();
+            let request_state_seeds = vec![&b"state"[..], str.as_ref()];
+            let (_state_pda, _state_bump) =
+                Pubkey::find_program_address(request_state_seeds.as_slice(), &id());
             let create_state_acc_inst = create_account(
                 borrower.key,
                 loan_request_state.key,
@@ -61,8 +63,12 @@ pub fn process_instruction(
             );
             invoke_signed(
                 &create_state_acc_inst,
-                &[borrower.clone(), loan_request_state.clone(), system_program_acc.clone()],
-                &[&[&b"state"[..], &[_bump]]],
+                &[
+                    borrower.clone(),
+                    loan_request_state.clone(),
+                    system_program_acc.clone(),
+                ],
+                &[&[&b"state"[..], str.as_ref(), &[_state_bump]]],
             )?;
             if !rent.is_exempt(loan_request_state.lamports(), loan_request_state.data_len()) {
                 return Err(ProgramError::AccountNotRentExempt);
@@ -194,6 +200,7 @@ pub fn process_instruction(
                 return Err(LoanError::NotEnoughBalance.into());
             }
             if clock.unix_timestamp as u64 - 30 > request_info.loan_submission_time {
+                // giving some seconds more just to make sure that deadline is not elapsed during transaction processing
                 return Err(LoanError::LoanDeadlinePassed.into());
             }
             msg!("transfer nft back to borrower !");
@@ -216,13 +223,13 @@ pub fn process_instruction(
                     vault.clone(),
                 ],
                 &[&[
-                    &b"token"[..],
+                    &b"vault"[..],
                     request_info.collateral_nft.as_ref(),
                     &[_bump],
                 ]],
             )?;
             msg!("transfer the loan amount back to the lender !");
-            let tranfer_loan = transfer(
+            let transfer_loan = transfer(
                 &token_program.key,
                 &borrower_token_account.key,
                 &request_info.lender_token_account,
@@ -231,7 +238,7 @@ pub fn process_instruction(
                 request_info.loan_amount,
             )?;
             invoke(
-                &tranfer_loan,
+                &transfer_loan,
                 &[
                     token_program.clone(),
                     borrower_token_account.clone(),
@@ -239,7 +246,18 @@ pub fn process_instruction(
                     lenders_token_account.clone(),
                 ],
             )?;
-            // close the accounts and release the rent
+            msg!("close the accounts and release the rent !");
+            // since loan state account is owned by the program only so we can just deduct and credit all lamports back to borrower !
+            let dest_starting_lamports = borrower.lamports();
+            **borrower.lamports.borrow_mut() = dest_starting_lamports
+                .checked_add(loan_request_state.lamports())
+                .unwrap();
+            **loan_request_state.lamports.borrow_mut() = 0;
+
+            let mut source_data = loan_request_state.data.borrow_mut();
+            source_data.fill(0);
+
+
             Ok(())
         }
         _ => return Err(ProgramError::InvalidArgument),
