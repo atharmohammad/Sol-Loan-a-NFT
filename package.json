@@ -10,15 +10,18 @@
     "build:program": "cargo build-bpf --manifest-path=./program/Cargo.toml --bpf-out-dir=dist/program",
     "clean:program": "cargo clean --manifest-path=./program/Cargo.toml && rm -rf ./dist",
     "test:program": "cargo test-bpf --manifest-path=./program/Cargo.toml",
-    "deploy:program" : "solana program deploy /media/athar/Develop/solana_fellow/nftloans/dist/program/nftloans.so",
-    "fmt" : "cd program/ && cargo fmt --all"
+    "deploy:program": "solana program deploy /media/athar/Develop/solana_fellow/nftloans/dist/program/nftloans.so",
+    "fmt": "cd program/ && cargo fmt --all"
   },
   "dependencies": {
+    "@metaplex-foundation/js": "^0.16.1",
     "@solana/buffer-layout": "^4.0.0",
     "@solana/buffer-layout-utils": "^0.2.0",
     "@solana/spl-token": "^0.3.5",
     "@solana/web3.js": "^1.62.1",
+    "arweave": "^1.11.6",
     "assert": "^2.0.0",
+    "bip39": "^3.0.4",
     "bn.js": "^5.2.1",
     "borsh": "^0.7.0",
     "buffer-layout": "^1.2.2",
