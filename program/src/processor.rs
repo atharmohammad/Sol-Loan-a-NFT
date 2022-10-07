@@ -259,6 +259,58 @@ pub fn process_instruction(
 
 
             Ok(())
+        },
+        3 => {
+            msg!("Cancel the request instruction start !");
+            let accounts_iter = &mut accounts.iter();
+            let borrower = next_account_info(accounts_iter)?;
+            let vault = next_account_info(accounts_iter)?;
+            let nft_holding_token_account = next_account_info(accounts_iter)?;
+            let loan_request_state = next_account_info(accounts_iter)?;
+            let token_program = next_account_info(accounts_iter)?;
+
+            msg!("Deserialize the loan request state account!");
+            let request_info = Request::unpack_unchecked(*loan_request_state.data.borrow())?;
+            if request_info.stage != Stage::INITIALIZED {
+                return Err(LoanError::WrongStage.into());
+            }
+            msg!("transfer nft back to borrower !");
+            let state_seeds = vec![b"vault".as_ref(), request_info.collateral_nft.as_ref()];
+            let (_vault_pda, _bump) = Pubkey::find_program_address(state_seeds.as_slice(), &id());
+            let tranfer_nft = set_authority(
+                &token_program.key,
+                &request_info.nft_holding_account,
+                Some(&borrower.key),
+                spl_token::instruction::AuthorityType::AccountOwner,
+                &request_info.vault,
+                &[&request_info.vault],
+            )?;
+            invoke_signed(
+                &tranfer_nft,
+                &[
+                    token_program.clone(),
+                    nft_holding_token_account.clone(),
+                    borrower.clone(),
+                    vault.clone(),
+                ],
+                &[&[
+                    &b"vault"[..],
+                    request_info.collateral_nft.as_ref(),
+                    &[_bump],
+                ]],
+            )?;
+            msg!("close the accounts and release the rent !");
+            // since loan state account is owned by the program only so we can just deduct and credit all lamports back to borrower !
+            let dest_starting_lamports = borrower.lamports();
+            **borrower.lamports.borrow_mut() = dest_starting_lamports
+                .checked_add(loan_request_state.lamports())
+                .unwrap();
+            **loan_request_state.lamports.borrow_mut() = 0;
+
+            let mut source_data = loan_request_state.data.borrow_mut();
+            source_data.fill(0);
+            
+            Ok(())
         }
         _ => return Err(ProgramError::InvalidArgument),
     }

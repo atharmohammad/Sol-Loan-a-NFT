@@ -23,6 +23,8 @@ pub enum LoanError {
     NotEnoughBalance,
     #[error("Deadline for loan has been passed")]
     LoanDeadlinePassed,
+    #[error("Loan has either granted or request has not been initialized")]
+    WrongStage,
 }
 
 impl From<LoanError> for ProgramError {
