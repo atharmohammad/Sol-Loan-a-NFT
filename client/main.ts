@@ -131,6 +131,32 @@ const main = async()=>{
     await initializeRequest();
     await compelete();
     await payback();
+    // await cancelRequest(); //when compelete and payback instruction call are not made
+}
+
+const cancelRequest = async() => {
+    console.log("///////// Cancel request instruction //////////");
+    value = new Payload({
+        id:3,
+        loan: BigInt(260),// placeholder , not needed in instruction
+        deadline : BigInt(15) // placeholder , not needed in instruction
+    });
+    const transaction_inst  = new TransactionInstruction({
+        keys:[
+            {pubkey:alice.publicKey,isSigner:true,isWritable:true},
+            {pubkey:vault,isSigner:false,isWritable:true},
+            {pubkey:nft_token_account.publicKey,isSigner:false,isWritable:true},
+            {pubkey:loan_request_state,isSigner:false,isWritable:true},
+            {pubkey:TOKEN_PROGRAM_ID,isSigner:false,isWritable:false},
+        ],
+        programId:programId.publicKey,
+        data : Buffer.from(serialize(schema,value))
+    });
+    const tx = new Transaction();
+    tx.add(transaction_inst);
+    await sendAndConfirmTransaction(connection,tx,[alice]);
+    loan_request_data_buffer = await connection.getAccountInfo(loan_request_state);
+    assert.equal(loan_request_data_buffer,null);
 }
 
 const payback = async() =>{
