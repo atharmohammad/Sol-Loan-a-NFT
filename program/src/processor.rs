@@ -309,7 +309,59 @@ pub fn process_instruction(
 
             let mut source_data = loan_request_state.data.borrow_mut();
             source_data.fill(0);
-            
+
+            Ok(())
+        },
+        4 => {
+            msg!("Claim the Collateral Instruction starts !");
+            let accounts_iter = &mut accounts.iter();
+            let lender = next_account_info(accounts_iter)?;
+            let vault = next_account_info(accounts_iter)?;
+            let nft_holding_token_account = next_account_info(accounts_iter)?;
+            let loan_request_state = next_account_info(accounts_iter)?;
+            let token_program = next_account_info(accounts_iter)?;
+            let clock = Clock::from_account_info(next_account_info(accounts_iter)?)?;
+
+            msg!("Deserialize the loan request state account!");
+            let mut request_info = Request::unpack_unchecked(*loan_request_state.data.borrow())?;
+            if request_info.stage != Stage::LOANGRANTED {
+                return Err(LoanError::WrongStage.into());
+            }
+            if clock.unix_timestamp as u64 - 30 <= request_info.loan_submission_time {
+                // giving some seconds more just to make sure that deadline is not elapsed during transaction processing
+                return Err(LoanError::NoClaim.into());
+            }
+            if *lender.key != request_info.lender {
+                return Err(ProgramError::IllegalOwner);
+            }
+            msg!("Transfer nft to lender !");
+            let state_seeds = vec![b"vault".as_ref(), request_info.collateral_nft.as_ref()];
+            let (_vault_pda, _bump) = Pubkey::find_program_address(state_seeds.as_slice(), &id());
+            let tranfer_nft = set_authority(
+                &token_program.key,
+                &request_info.nft_holding_account,
+                Some(&lender.key),
+                spl_token::instruction::AuthorityType::AccountOwner,
+                &request_info.vault,
+                &[&request_info.vault],
+            )?;
+            invoke_signed(
+                &tranfer_nft,
+                &[
+                    token_program.clone(),
+                    nft_holding_token_account.clone(),
+                    lender.clone(),
+                    vault.clone(),
+                ],
+                &[&[
+                    &b"vault"[..],
+                    request_info.collateral_nft.as_ref(),
+                    &[_bump],
+                ]],
+            )?;
+            request_info.stage = Stage::DEADLINEPASSED;
+            msg!("Serialize the loan request state account after assigning the values");
+            request_info.serialize(&mut &mut loan_request_state.data.borrow_mut()[..])?;
             Ok(())
         }
         _ => return Err(ProgramError::InvalidArgument),

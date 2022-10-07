@@ -132,6 +132,33 @@ const main = async()=>{
     await compelete();
     await payback();
     // await cancelRequest(); //when compelete and payback instruction call are not made
+    // await claim(); // when testing claim instantly you need to remove 24*60*60 from program so to not add days and add seconds , and remove the check for timestamp in compelete method
+}
+
+const claim = async() => {
+    console.log("///////// Claim Nft instruction starts //////////");
+    value = new Payload({
+        id:4,
+        loan: BigInt(260),// placeholder , not needed in instruction
+        deadline : BigInt(15) // placeholder , not needed in instruction
+    });
+    const transaction_inst  = new TransactionInstruction({
+        keys:[
+            {pubkey:bob.publicKey,isSigner:true,isWritable:true},
+            {pubkey:vault,isSigner:false,isWritable:true},
+            {pubkey:nft_token_account.publicKey,isSigner:false,isWritable:true},
+            {pubkey:loan_request_state,isSigner:false,isWritable:true},
+            {pubkey:TOKEN_PROGRAM_ID,isSigner:false,isWritable:false},
+            {pubkey:SYSVAR_CLOCK_PUBKEY,isSigner:false,isWritable:false}
+        ],
+        programId:programId.publicKey,
+        data : Buffer.from(serialize(schema,value))
+    });
+    const tx = new Transaction();
+    tx.add(transaction_inst);
+    await sendAndConfirmTransaction(connection,tx,[bob]);
+    const nft_account = await connection.getAccountInfo(nft_token_account.publicKey);
+    nft_account?.owner.equals(bob.publicKey);
 }
 
 const cancelRequest = async() => {
@@ -239,7 +266,7 @@ const compelete = async() => {
     loan_request_state_data.lender.equals(bob.publicKey);
     const slot = await connection.getSlot();
     const timestamp = await connection.getBlockTime(slot);
-    if(timestamp)assert.equal(loan_request_state_data.loanSubmissionTime-BigInt(timestamp),BigInt(15*24*60*60))
+    if(timestamp)assert.equal(loan_request_state_data.loanSubmissionTime-BigInt(timestamp),BigInt(15*24*60*60)) 
     else {
         console.log("Timestamp not found for the ledger !");
         process.exit(1);

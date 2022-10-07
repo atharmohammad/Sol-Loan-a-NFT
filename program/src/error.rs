@@ -25,6 +25,8 @@ pub enum LoanError {
     LoanDeadlinePassed,
     #[error("Loan has either granted or request has not been initialized")]
     WrongStage,
+    #[error("Cannot claim nft untill deadline is passed")]
+    NoClaim,
 }
 
 impl From<LoanError> for ProgramError {

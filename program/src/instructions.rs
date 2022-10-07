@@ -39,15 +39,6 @@ pub enum LoanInstruction {
     /// 6 - [] token program
     /// 7 - [] clock sysvar
     PaybackLoan,
-    /// Claim the nft if the deadline has been exceeded
-    /// accounts required :
-    /// 0 - [signer] lender who provided the loan
-    /// 1 - [writer] vault pda that is has authority for the nft token account
-    /// 2 - [writer] nft token account that is holiding the collateral nft
-    /// 3 - [writer] loan request state for the nft
-    /// 4 - [] token program
-    /// 5 - [] clock sysvar
-    ClaimCollateral,
     /// Cancel the request for loan if not granted
     /// accounts required :
     /// 0 - [signer] borrower who initiated the request for loan
@@ -56,6 +47,15 @@ pub enum LoanInstruction {
     /// 3 - [writer] loan request state for the nft
     /// 4 - [] token program
     CancelRequest,
+    /// Claim the nft if the deadline has been exceeded
+    /// accounts required :
+    /// 0 - [signer] lender who provided the loan
+    /// 1 - [writer] vault pda that is authority for the nft token account
+    /// 2 - [writer] nft token account that is holiding the collateral nft
+    /// 3 - [writer] loan request state for the nft
+    /// 4 - [] token program
+    /// 5 - [] clock sysvar
+    ClaimCollateral,
 }
 
 // pub fn initialize(
